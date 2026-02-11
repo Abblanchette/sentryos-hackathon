@@ -7,7 +7,8 @@ import { DesktopIcon } from './DesktopIcon'
 import { Notepad } from './apps/Notepad'
 import { FolderView, FolderItem } from './apps/FolderView'
 import { Chat } from './apps/Chat'
-import { useState } from 'react'
+import * as Sentry from '@sentry/nextjs'
+import { useState, useEffect } from 'react'
 
 const INSTALL_GUIDE_CONTENT = `# SentryOS Install Guide
 
@@ -58,7 +59,25 @@ function DesktopContent() {
   const { windows, openWindow } = useWindowManager()
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
 
+  // Log desktop session start
+  useEffect(() => {
+    Sentry.logger.info("Desktop session started")
+    Sentry.metrics.count("desktop.session.started", 1)
+  }, [])
+
+  // Track active window count
+  useEffect(() => {
+    const activeWindowCount = windows.filter(w => !w.isMinimized).length
+    Sentry.metrics.gauge("desktop.windows.active", activeWindowCount, {
+      unit: "none"
+    })
+  }, [windows])
+
   const openInstallGuide = () => {
+    Sentry.logger.info("Desktop icon opened: Install Guide")
+    Sentry.metrics.count("desktop.icon.opened", 1, {
+      attributes: { icon: "install-guide" }
+    })
     openWindow({
       id: 'install-guide',
       title: 'Install Guide.md',
@@ -76,6 +95,10 @@ function DesktopContent() {
   }
 
   const openChatWindow = () => {
+    Sentry.logger.info("Desktop icon opened: Chat")
+    Sentry.metrics.count("desktop.icon.opened", 1, {
+      attributes: { icon: "chat" }
+    })
     openWindow({
       id: 'chat',
       title: 'SentryOS Chat',
@@ -93,6 +116,10 @@ function DesktopContent() {
   }
 
   const openAgentsFolder = () => {
+    Sentry.logger.info("Desktop icon opened: Agents Folder")
+    Sentry.metrics.count("desktop.icon.opened", 1, {
+      attributes: { icon: "agents-folder" }
+    })
     const agentsFolderItems: FolderItem[] = []
 
     openWindow({
@@ -112,6 +139,9 @@ function DesktopContent() {
   }
 
   const handleDesktopClick = () => {
+    if (selectedIcon) {
+      Sentry.metrics.count("desktop.icon.deselected", 1)
+    }
     setSelectedIcon(null)
   }
 

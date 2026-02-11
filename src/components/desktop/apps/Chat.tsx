@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, Loader2, Wrench, Search, Globe, FileText, Terminal } from 'lucide-react'
+import * as Sentry from '@sentry/nextjs'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -78,10 +79,24 @@ export function Chat() {
       timestamp: new Date()
     }
 
+    Sentry.logger.info("User sent chat message", {
+      messageLength: userMessage.content.length,
+      conversationLength: messages.length
+    })
+    Sentry.metrics.count("chat.message.sent", 1, {
+      attributes: { role: "user" }
+    })
+    Sentry.metrics.gauge("chat.message.length", userMessage.content.length, {
+      unit: "none",
+      attributes: { role: "user" }
+    })
+
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
     setCurrentTool(null)
+
+    const chatStartTime = performance.now()
 
     try {
       const response = await fetch('/api/chat', {
@@ -98,8 +113,17 @@ export function Chat() {
       })
 
       if (!response.ok) {
+        Sentry.logger.error("Chat API request failed", {
+          status: response.status,
+          statusText: response.statusText
+        })
+        Sentry.metrics.count("chat.api.client_error", 1, {
+          attributes: { status: response.status.toString() }
+        })
         throw new Error('Failed to get response')
       }
+
+      Sentry.logger.info("Chat API request successful")
 
       // Handle SSE streaming response
       const reader = response.body?.getReader()
@@ -139,12 +163,18 @@ export function Chat() {
                 streamingContent += parsed.text
                 setCurrentTool(null) // Clear tool status when text starts flowing
                 // Update the streaming message
-                setMessages(prev => prev.map(msg => 
-                  msg.id === streamingMessageId 
+                setMessages(prev => prev.map(msg =>
+                  msg.id === streamingMessageId
                     ? { ...msg, content: streamingContent }
                     : msg
                 ))
               } else if (parsed.type === 'tool_start') {
+                Sentry.logger.info("Tool started in chat UI", {
+                  toolName: parsed.tool
+                })
+                Sentry.metrics.count("chat.tool.started_ui", 1, {
+                  attributes: { tool_name: parsed.tool }
+                })
                 setCurrentTool({
                   name: parsed.tool,
                   status: 'running'
@@ -155,11 +185,24 @@ export function Chat() {
                   elapsed: parsed.elapsed
                 } : null)
               } else if (parsed.type === 'done') {
+                const chatDuration = performance.now() - chatStartTime
+                Sentry.logger.info("Chat response completed", {
+                  durationMs: chatDuration,
+                  responseLength: streamingContent.length
+                })
+                Sentry.metrics.distribution("chat.response.duration", chatDuration, {
+                  unit: "millisecond"
+                })
+                Sentry.metrics.gauge("chat.response.length", streamingContent.length, {
+                  unit: "none"
+                })
                 setCurrentTool(null)
               } else if (parsed.type === 'error') {
+                Sentry.logger.error("Chat response error received")
+                Sentry.metrics.count("chat.response.error", 1)
                 streamingContent = 'Sorry, I encountered an error processing your request.'
-                setMessages(prev => prev.map(msg => 
-                  msg.id === streamingMessageId 
+                setMessages(prev => prev.map(msg =>
+                  msg.id === streamingMessageId
                     ? { ...msg, content: streamingContent }
                     : msg
                 ))
@@ -176,7 +219,18 @@ export function Chat() {
       if (!streamingContent) {
         setMessages(prev => prev.filter(msg => msg.id !== streamingMessageId))
       }
-    } catch {
+    } catch (error) {
+      const chatDuration = performance.now() - chatStartTime
+      Sentry.logger.error("Chat request exception", {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        durationMs: chatDuration
+      })
+      Sentry.metrics.count("chat.request.exception", 1)
+      Sentry.metrics.distribution("chat.response.duration", chatDuration, {
+        unit: "millisecond",
+        attributes: { status: "error" }
+      })
+
       const errorMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
