@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 interface Message {
   id: string
@@ -45,10 +46,80 @@ const ToolIcon = ({ type }: { type: 'search' | 'globe' | 'file' | 'terminal' | '
   }
 }
 
+// Chart renderer for data visualization
+const ChartRenderer = ({ data, type, title }: { data: string; type: string; title?: string }) => {
+  try {
+    const chartData = JSON.parse(data)
+
+    if (type === 'line') {
+      return (
+        <div className="my-4 p-4 bg-[#1e1a2a] rounded">
+          {title && <h4 className="text-sm font-semibold text-[#e8e4f0] mb-3">{title}</h4>}
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={chartData.data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#362552" />
+              <XAxis dataKey={chartData.xKey || "name"} stroke="#9086a3" style={{ fontSize: '11px' }} />
+              <YAxis stroke="#9086a3" style={{ fontSize: '11px' }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#2a2438', border: '1px solid #362552', borderRadius: '4px' }}
+                labelStyle={{ color: '#e8e4f0' }}
+              />
+              <Legend wrapperStyle={{ fontSize: '11px', color: '#9086a3' }} />
+              {chartData.lines?.map((line: { key: string; name: string; color: string }, idx: number) => (
+                <Line
+                  key={idx}
+                  type="monotone"
+                  dataKey={line.key}
+                  stroke={line.color || '#7553ff'}
+                  name={line.name}
+                  strokeWidth={2}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )
+    }
+
+    if (type === 'bar') {
+      return (
+        <div className="my-4 p-4 bg-[#1e1a2a] rounded">
+          {title && <h4 className="text-sm font-semibold text-[#e8e4f0] mb-3">{title}</h4>}
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={chartData.data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#362552" />
+              <XAxis dataKey={chartData.xKey || "name"} stroke="#9086a3" style={{ fontSize: '11px' }} />
+              <YAxis stroke="#9086a3" style={{ fontSize: '11px' }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#2a2438', border: '1px solid #362552', borderRadius: '4px' }}
+                labelStyle={{ color: '#e8e4f0' }}
+              />
+              <Legend wrapperStyle={{ fontSize: '11px', color: '#9086a3' }} />
+              {chartData.bars?.map((bar: { key: string; name: string; color: string }, idx: number) => (
+                <Bar
+                  key={idx}
+                  dataKey={bar.key}
+                  fill={bar.color || '#7553ff'}
+                  name={bar.name}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )
+    }
+
+    return null
+  } catch (e) {
+    console.error('Chart rendering error:', e)
+    return null
+  }
+}
+
 const QUICK_QUERIES = [
   "Compare Sentry vs Datadog for error tracking",
-  "What are Sentry's main competitors and their market share?",
-  "Compare pricing: Sentry vs Rollbar vs Bugsnag",
+  "Show market share trends with a chart",
+  "Compare pricing: Sentry vs Rollbar vs Bugsnag (with chart)",
   "Latest updates and features from New Relic",
   "How does Sentry's session replay compare to LogRocket?",
   "What do developers say about Sentry on Reddit/HN?",
@@ -298,6 +369,13 @@ export function CompetitiveResearch() {
                     code({ className, children, ...props }) {
                       const match = /language-(\w+)/.exec(className || '')
                       const isInline = !match && !String(children).includes('\n')
+
+                      // Check if this is a chart code block
+                      if (match && (match[1] === 'chart-line' || match[1] === 'chart-bar')) {
+                        const chartType = match[1].replace('chart-', '')
+                        return <ChartRenderer data={String(children)} type={chartType} />
+                      }
+
                       return isInline ? (
                         <code className="bg-[#1e1a2a] px-1.5 py-0.5 rounded text-[#ff45a8] text-xs" {...props}>
                           {children}

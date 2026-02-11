@@ -38,7 +38,48 @@ When comparing products, consider:
 4. Platform and language support
 5. Performance and reliability
 6. Community and ecosystem
-7. Recent innovations and updates`
+7. Recent innovations and updates
+
+## Visualizing Data with Charts
+
+When presenting comparative data, trends, or metrics, create interactive charts using special code blocks:
+
+**Line Chart** (for trends over time):
+\`\`\`chart-line
+{
+  "xKey": "year",
+  "data": [
+    {"year": "2023", "sentry": 45, "datadog": 52},
+    {"year": "2024", "sentry": 58, "datadog": 61}
+  ],
+  "lines": [
+    {"key": "sentry", "name": "Sentry", "color": "#7553ff"},
+    {"key": "datadog", "name": "Datadog", "color": "#ff45a8"}
+  ]
+}
+\`\`\`
+
+**Bar Chart** (for comparisons):
+\`\`\`chart-bar
+{
+  "xKey": "product",
+  "data": [
+    {"product": "Sentry", "price": 26, "features": 85},
+    {"product": "Datadog", "price": 31, "features": 90}
+  ],
+  "bars": [
+    {"key": "price", "name": "Price ($)", "color": "#7553ff"},
+    {"key": "features", "name": "Features", "color": "#ff45a8"}
+  ]
+}
+\`\`\`
+
+Use charts when:
+- Comparing pricing across multiple products
+- Showing market share or adoption trends
+- Visualizing feature capability scores
+- Displaying performance metrics or benchmarks
+- Illustrating growth trends over time`
 
 interface MessageInput {
   role: 'user' | 'assistant'
